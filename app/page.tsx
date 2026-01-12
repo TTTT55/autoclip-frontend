@@ -7,6 +7,7 @@ export default function Home() {
   const [start, setStart] = useState<string>("");
   const [end, setEnd] = useState<string>("");
   const [status, setStatus] = useState<string>("");
+  const [downloadLink, setDownloadLink] = useState<string>("");
 
   async function clipVideo() {
     if (!url || !start || !end) {
@@ -26,7 +27,9 @@ export default function Home() {
 
       if (!res.ok) throw new Error("Server error");
 
+      const data = await res.json();
       setStatus("Clip complete!");
+      setDownloadLink(`http://127.0.0.1:8000/download?file=${data.file}`);
     } catch (err) {
       console.error(err);
       setStatus("Error while clipping");
@@ -67,6 +70,15 @@ export default function Home() {
       </button>
 
       <p className="mt-3 text-center text-sm text-zinc-300">{status}</p>
+
+      {downloadLink && (
+        <a
+          href={downloadLink}
+          className="block mt-4 text-center text-blue-400 underline"
+        >
+          Download your clip
+        </a>
+      )}
     </div>
   </main>
   );
