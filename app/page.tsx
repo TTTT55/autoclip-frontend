@@ -1,85 +1,11 @@
 "use client";
-
 import { useState } from "react";
-
-export default function Home() {
-  const [url, setUrl] = useState<string>("");
-  const [start, setStart] = useState<string>("");
-  const [end, setEnd] = useState<string>("");
-  const [status, setStatus] = useState<string>("");
-  const [downloadLink, setDownloadLink] = useState<string>("");
-
-  async function clipVideo() {
-    if (!url || !start || !end) {
-      setStatus("Please fill all fields");
-      return;
-    }
-
-    setStatus("Processing...");
-
-    try {
-      const res = await fetch(
-        `http://127.0.0.1:8000/clip?source=youtube&url=${encodeURIComponent(
-          url
-        )}&start=${start}&end=${end}`,
-        { method: "POST" }
-      );
-
-      if (!res.ok) throw new Error("Server error");
-
-      const data = await res.json();
-      setStatus("Clip complete!");
-      setDownloadLink(`http://127.0.0.1:8000/download?file=${data.file}`);
-    } catch (err) {
-      console.error(err);
-      setStatus("Error while clipping");
-    }
-  }
-
-  return (
-    <main className="min-h-screen flex items-center justify-center bg-black">
-    <div className="bg-zinc-900 p-8 rounded-xl w-96 shadow-lg">
-      <h1 className="text-2xl mb-4 text-center text-white">AutoClip</h1>
-
-      <input
-        className="w-full mb-3 p-2 rounded bg-zinc-800 text-white placeholder-zinc-400 outline-none focus:ring-2 focus:ring-blue-600"
-        placeholder="YouTube or Drive URL"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-      />
-
-      <input
-        className="w-full mb-3 p-2 rounded bg-zinc-800 text-white placeholder-zinc-400 outline-none focus:ring-2 focus:ring-blue-600"
-        placeholder="Start time (00:10)"
-        value={start}
-        onChange={(e) => setStart(e.target.value)}
-      />
-
-      <input
-        className="w-full mb-3 p-2 rounded bg-zinc-800 text-white placeholder-zinc-400 outline-none focus:ring-2 focus:ring-blue-600"
-        placeholder="End time (00:20)"
-        value={end}
-        onChange={(e) => setEnd(e.target.value)}
-      />
-
-      <button
-        onClick={clipVideo}
-        className="w-full bg-blue-600 py-2 rounded text-white hover:bg-blue-700 transition"
-      >
-        Clip Video
-      </button>
-
-      <p className="mt-3 text-center text-sm text-zinc-300">{status}</p>
-
-      {downloadLink && (
-        <a
-          href={downloadLink}
-          className="block mt-4 text-center text-blue-400 underline"
-        >
-          Download your clip
-        </a>
-      )}
-    </div>
-  </main>
-  );
+const API=process.env.NEXT_PUBLIC_API_URL||"http://127.0.0.1:8000";
+type Clip={score:number;title:string;hook:string;reason:string;file?:string};
+type Job={status:string;progress:number;stage:string;error?:string;clips:Clip[]};
+export default function Home(){
+ const[url,setUrl]=useState("");const[job,setJob]=useState<Job|null>(null);const[status,setStatus]=useState("");const[maxClips,setMaxClips]=useState(5);const[style,setStyle]=useState("word_pop");const[ratio,setRatio]=useState("9:16");
+ async function poll(id:string){const r=await fetch(API+"/ai/clip/"+id);const d=await r.json();setJob(d);if(d.status==="processing"||d.status==="queued")setTimeout(()=>poll(id),1500);else setStatus(d.status==="complete"?"Your clips are ready.":d.error||"Processing failed")}
+ async function generate(){if(!url.trim()){setStatus("Paste a YouTube or Google Drive URL.");return}setStatus("Starting AI analysis…");setJob(null);try{const r=await fetch(API+"/ai/clip",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:url.includes("drive.google")?"drive":"youtube",url,max_clips:maxClips,aspect_ratio:ratio,caption_style:style})});if(!r.ok)throw Error(await r.text());poll((await r.json()).job_id)}catch(e){setStatus(e instanceof Error?e.message:"Unable to start job")}}
+ return <main className="min-h-screen bg-[#09090b] text-white"><div className="mx-auto max-w-6xl px-6 py-12"><header className="mb-12 text-center"><div className="mb-3 text-sm font-semibold tracking-[.3em] text-violet-400">AUTOCLIP AI</div><h1 className="text-5xl font-bold tracking-tight">Turn long videos into shorts.</h1><p className="mx-auto mt-4 max-w-2xl text-zinc-400">AI finds the strongest moments, writes hooks, reframes the video and burns in captions automatically.</p></header><section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl"><label className="mb-2 block text-sm text-zinc-400">Video URL</label><input value={url} onChange={e=>setUrl(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generate()} placeholder="Paste a YouTube or Google Drive URL" className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-4 outline-none focus:border-violet-500"/><div className="mt-5 grid gap-4 md:grid-cols-3"><label className="text-sm text-zinc-400">Number of clips<select value={maxClips} onChange={e=>setMaxClips(+e.target.value)} className="mt-2 w-full rounded-lg bg-zinc-900 p-3">{[3,5,8,10].map(n=><option key={n}>{n}</option>)}</select></label><label className="text-sm text-zinc-400">Format<select value={ratio} onChange={e=>setRatio(e.target.value)} className="mt-2 w-full rounded-lg bg-zinc-900 p-3"><option value="9:16">9:16 Vertical</option><option value="1:1">1:1 Square</option><option value="16:9">16:9 Landscape</option></select></label><label className="text-sm text-zinc-400">Captions<select value={style} onChange={e=>setStyle(e.target.value)} className="mt-2 w-full rounded-lg bg-zinc-900 p-3"><option value="word_pop">Word Pop</option><option value="clean">Clean</option></select></label></div><button onClick={generate} className="mt-6 w-full rounded-xl bg-violet-600 py-4 font-semibold hover:bg-violet-500">✨ Generate AI Clips</button>{job&&<div className="mt-5"><div className="mb-2 flex justify-between text-sm text-zinc-400"><span>{job.stage}</span><span>{job.progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-violet-500 transition-all" style={{width:job.progress+"%"}}/></div></div>}{status&&<p className="mt-4 text-center text-sm text-zinc-400">{status}</p>}</section>{job?.status==="complete"&&<section className="mt-8 grid gap-5 md:grid-cols-2">{job.clips.map((c,i)=><article key={i} className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">{c.file&&<video controls className="aspect-video w-full bg-black" src={API+"/download?file="+encodeURIComponent(c.file)}/>}<div className="p-5"><div className="mb-2 flex justify-between"><span className="text-xs uppercase text-violet-400">Clip {i+1}</span><span className="text-xs text-emerald-400">{c.score}/100</span></div><h2 className="text-xl font-semibold">{c.title}</h2><p className="mt-2 text-sm text-violet-300">{c.hook}</p><p className="mt-3 text-sm text-zinc-400">{c.reason}</p>{c.file&&<a className="mt-4 inline-block text-sm text-violet-400" href={API+"/download?file="+encodeURIComponent(c.file)}>Download MP4 →</a>}</div></article>)}</section>}</div></main>
 }
